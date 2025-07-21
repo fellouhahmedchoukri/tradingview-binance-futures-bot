@@ -1,3 +1,2 @@
 flask
 python-binance
-nano requirements.txt
