@@ -4,6 +4,7 @@ from binance.client import Client
 
 app = Flask(__name__)
 
+# 🔑 Clés d'API Binance
 api_key = os.getenv("BINANCE_API_KEY")
 api_secret = os.getenv("BINANCE_API_SECRET")
 testnet = os.getenv("BINANCE_TESTNET", "False") == "True"
@@ -27,12 +28,11 @@ def webhook():
             lot_size = float(data['lot_size'])
             grid_levels = data['grid_levels']
 
-            # Exemple : placer des BUY LIMIT à chaque niveau de grille
             orders = []
             for level in grid_levels:
                 order = client.futures_create_order(
                     symbol=symbol,
-                    side="BUY",
+                    side="BUY",  # Tu peux rendre ça dynamique plus tard
                     type="LIMIT",
                     quantity=lot_size,
                     price=round(float(level), 2),
@@ -40,7 +40,7 @@ def webhook():
                 )
                 orders.append(order)
 
-            print("✅ Ordres placés :", orders)
+            print("✅ Ordres LIMIT placés :", orders)
             return jsonify({"status": "success", "orders": orders}), 200
 
         else:
