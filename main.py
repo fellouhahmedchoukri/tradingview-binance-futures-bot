@@ -2,15 +2,12 @@ from flask import Flask, request, jsonify
 import os
 from binance.client import Client
 
-# Initialisation Flask
-app = Flask(__name__)
+app = Flask(__name__)  # <- MANQUAIT DANS TA VERSION
 
-# Récupération des variables d'environnement
 api_key = os.getenv("BINANCE_API_KEY")
 api_secret = os.getenv("BINANCE_API_SECRET")
 testnet = os.getenv("BINANCE_TESTNET", "False") == "True"
 
-# Initialisation client Binance Futures
 client = Client(api_key, api_secret, testnet=testnet)
 
 @app.route('/webhook', methods=['POST'])
@@ -31,6 +28,7 @@ def webhook():
             'type': order_type,
             'quantity': quantity,
         }
+
         if order_type == "LIMIT":
             params['price'] = price
             params['timeInForce'] = "GTC"
