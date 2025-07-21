@@ -2,13 +2,16 @@ from flask import Flask, request, jsonify
 import os
 from binance.client import Client
 
+# Initialisation Flask
+app = Flask(__name__)
+
+# Récupération des variables d'environnement
 api_key = os.getenv("BINANCE_API_KEY")
 api_secret = os.getenv("BINANCE_API_SECRET")
 testnet = os.getenv("BINANCE_TESTNET", "False") == "True"
 
+# Initialisation client Binance Futures
 client = Client(api_key, api_secret, testnet=testnet)
-
-
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -45,6 +48,5 @@ def home():
     return "✅ Binance Futures Webhook Bot actif."
 
 if __name__ == '__main__':
-    import os
     port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host="0.0.0.0", port=port)
