@@ -17,7 +17,10 @@ def home():
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    data = request.json
+    if request.content_type != 'application/json':
+        return 'Unsupported Media Type', 415
+
+    data = request.get_json()
     print("[📥 Webhook reçu] :", data)
 
     try:
@@ -32,24 +35,22 @@ def webhook():
             for level in grid_levels:
                 order = client.futures_create_order(
                     symbol=symbol,
-                    side="BUY",  # Tu peux rendre ça dynamique plus tard
+                    side="BUY",  # Peut être rendu dynamique
                     type="LIMIT",
+                    price=str(level),
                     quantity=lot_size,
-                    price=round(float(level), 2),
                     timeInForce="GTC"
                 )
                 orders.append(order)
 
-            print("✅ Ordres LIMIT placés :", orders)
-            return jsonify({"status": "success", "orders": orders}), 200
+            return jsonify({'status': 'orders placed', 'details': orders}), 200
 
         else:
-            return jsonify({"status": "error", "message": f"Action inconnue : {action}"}), 400
+            return jsonify({'error': 'Invalid action'}), 400
 
     except Exception as e:
-        print("❌ Erreur :", e)
-        return jsonify({"status": "error", "message": str(e)}), 400
+        print("[❌ Erreur webhook] :", str(e))
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
