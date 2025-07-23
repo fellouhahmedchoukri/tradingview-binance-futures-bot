@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 import os
-import binance
 from binance.client import Client
+from binance.exceptions import BinanceAPIException
 import logging
 from logging.handlers import RotatingFileHandler
 
@@ -31,8 +31,13 @@ def home():
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    data = request.json
-    logger.info(f"[📥 Webhook received] : {data}")
+    logger.info("📡 Webhook endpoint hit")  # 🆕 Log de vérification
+    try:
+        data = request.get_json(force=True)
+        logger.info(f"[📥 Webhook received JSON] : {data}")  # 🆕 Log du contenu reçu
+    except Exception as e:
+        logger.error(f"❌ Invalid JSON received: {str(e)}")
+        return jsonify({"status": "error", "message": "Invalid JSON"}), 400
 
     if passphrase != "default-passphrase" and data.get('passphrase') != passphrase:
         logger.warning("Unauthorized access attempt")
@@ -54,9 +59,9 @@ def webhook():
 
         return jsonify({"status": "error", "message": "Unknown action or message format"}), 400
 
-    except binance.error.ClientError as api_error:
-        logger.error(f"Binance API Error: {api_error}")
-        return jsonify({"status": "error", "message": str(api_error)}), 400
+    except BinanceAPIException as api_error:
+        logger.error(f"Binance API Error: {api_error.message}")
+        return jsonify({"status": "error", "message": api_error.message}), 400
 
     except Exception as e:
         logger.error(f"Unexpected error: {str(e)}")
@@ -110,8 +115,8 @@ def handle_grid_entry(parts):
             orders.append(order)
             logger.info(f"Order placed: {order}")
 
-        except binance.error.ClientError as e:
-            if "MIN_NOTIONAL" in str(e):
+        except BinanceAPIException as e:
+            if "MIN_NOTIONAL" in str(e.message):
                 logger.warning(f"Price too low, adjusting: {price}")
                 adjusted_price = float(price) * 1.01
                 quantity, price_value = format_quantity_price(symbol, lot_size, adjusted_price)
@@ -126,6 +131,7 @@ def handle_grid_entry(parts):
                 orders.append(order)
                 logger.info(f"Adjusted order placed at {price_value}")
             else:
+                logger.error(f"Order failed: {e.message}")
                 raise e
 
     logger.info(f"✅ Grid orders placed: {len(orders)} orders")
@@ -158,8 +164,8 @@ def handle_grid_exit(parts):
                 )
                 close_orders.append(close_order)
                 logger.info(f"Position closed: {close_order}")
-            except binance.error.ClientError as e:
-                logger.error(f"Error closing position: {e}")
+            except BinanceAPIException as e:
+                logger.error(f"Error closing position: {e.message}")
 
     logger.info(f"✅ Grid closed: {len(close_orders)} positions closed")
     return jsonify({"status": "success", "closed_positions": close_orders}), 200
