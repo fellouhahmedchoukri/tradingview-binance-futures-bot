@@ -62,6 +62,32 @@ def webhook():
         logger.error(f"Unexpected error: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
+# ✅ Fonction d'arrondi selon les filtres de Binance
+def get_symbol_filters(symbol):
+    info = client.futures_exchange_info()
+    for s in info['symbols']:
+        if s['symbol'] == symbol:
+            return s['filters']
+    return []
+
+def format_quantity_price(symbol, quantity, price):
+    filters = get_symbol_filters(symbol)
+    step_size = tick_size = None
+
+    for f in filters:
+        if f['filterType'] == 'LOT_SIZE':
+            step_size = float(f['stepSize'])
+        elif f['filterType'] == 'PRICE_FILTER':
+            tick_size = float(f['tickSize'])
+
+    if step_size:
+        quantity = quantity - (quantity % step_size)
+    if tick_size:
+        price = price - (price % tick_size)
+
+    return round(quantity, 8), round(price, 8)
+
+# 🚀 Entrée GRID
 def handle_grid_entry(parts):
     symbol = parts[1].upper()
     lot_size = float(parts[2])
@@ -72,12 +98,12 @@ def handle_grid_entry(parts):
     orders = []
     for price in levels:
         try:
-            price_value = round(float(price), 6)
+            quantity, price_value = format_quantity_price(symbol, lot_size, float(price))
             order = client.futures_create_order(
                 symbol=symbol,
                 side="BUY",
                 type="LIMIT",
-                quantity=lot_size,
+                quantity=quantity,
                 price=price_value,
                 timeInForce="GTC"
             )
@@ -87,23 +113,25 @@ def handle_grid_entry(parts):
         except binance.error.ClientError as e:
             if "MIN_NOTIONAL" in str(e):
                 logger.warning(f"Price too low, adjusting: {price}")
-                adjusted_price = round(float(price) * 1.01, 6)
+                adjusted_price = float(price) * 1.01
+                quantity, price_value = format_quantity_price(symbol, lot_size, adjusted_price)
                 order = client.futures_create_order(
                     symbol=symbol,
                     side="BUY",
                     type="LIMIT",
-                    quantity=lot_size,
-                    price=adjusted_price,
+                    quantity=quantity,
+                    price=price_value,
                     timeInForce="GTC"
                 )
                 orders.append(order)
-                logger.info(f"Adjusted order placed at {adjusted_price}")
+                logger.info(f"Adjusted order placed at {price_value}")
             else:
                 raise e
 
     logger.info(f"✅ Grid orders placed: {len(orders)} orders")
     return jsonify({"status": "success", "orders": orders}), 200
 
+# 🚪 Sortie GRID
 def handle_grid_exit(parts):
     symbol = parts[1].upper()
     reason = parts[2]
@@ -136,6 +164,7 @@ def handle_grid_exit(parts):
     logger.info(f"✅ Grid closed: {len(close_orders)} positions closed")
     return jsonify({"status": "success", "closed_positions": close_orders}), 200
 
+# 🧩 Ancienne version (legacy)
 def handle_legacy_grid_entry(data):
     symbol = data['symbol'].upper()
     lot_size = float(data['lot_size'])
@@ -143,12 +172,12 @@ def handle_legacy_grid_entry(data):
 
     orders = []
     for level in grid_levels:
-        price_value = round(float(level), 6)
+        quantity, price_value = format_quantity_price(symbol, lot_size, float(level))
         order = client.futures_create_order(
             symbol=symbol,
             side="BUY",
             type="LIMIT",
-            quantity=lot_size,
+            quantity=quantity,
             price=price_value,
             timeInForce="GTC"
         )
