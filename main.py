@@ -103,12 +103,15 @@ def handle_grid_entry(parts):
     orders = []
     for price in levels:
         try:
+            # Convertir en float et arrondir à 2 décimales
+            price_value = round(float(price), 2)
+            
             order = client.futures_create_order(
                 symbol=symbol,
                 side="BUY",
                 type="LIMIT",
                 quantity=lot_size,
-                price=round(float(price), 2),
+                price=price_value,
                 timeInForce="GTC"
             )
             orders.append(order)
@@ -117,16 +120,23 @@ def handle_grid_entry(parts):
         except binance.exceptions.BinanceAPIException as e:
             if e.code == -2010:  # Ordre en dessous du minimum
                 logger.warning(f"Price too low, adjusting: {price}")
-                # Tentative avec le prix minimum
+                # Ajuster le prix en augmentant de 1%
+                adjusted_price = round(float(price) * 1.01, 2)
+                
                 order = client.futures_create_order(
                     symbol=symbol,
                     side="BUY",
                     type="LIMIT",
                     quantity=lot_size,
-                    price=round(float(price) * 1.01,  # Ajustement de 1%
+                    price=adjusted_price,
                     timeInForce="GTC"
                 )
                 orders.append(order)
+                logger.info(f"Adjusted order placed at {adjusted_price}")
+            else:
+                # Si c'est une autre erreur, on la propage
+                logger.error(f"Error placing order: {e}")
+                raise e
     
     logger.info(f"✅ Grid orders placed: {len(orders)} orders")
     return jsonify({
@@ -183,12 +193,15 @@ def handle_legacy_grid_entry(data):
     
     orders = []
     for level in grid_levels:
+        # Convertir en float et arrondir à 2 décimales
+        price_value = round(float(level), 2)
+        
         order = client.futures_create_order(
             symbol=symbol,
             side="BUY",
             type="LIMIT",
             quantity=lot_size,
-            price=round(float(level), 2),
+            price=price_value,
             timeInForce="GTC"
         )
         orders.append(order)
